@@ -9,14 +9,15 @@ from selenium.webdriver.chrome.options import Options
 from dotenv import load_dotenv
 import os
 import time
-
 from yaspin import yaspin
 # from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
 from fake_useragent import UserAgent
-
 from bs4 import BeautifulSoup
+import requests
+from urllib.parse import urlparse
+import os
+import tempfile
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,37 +48,121 @@ with yaspin(text="Logging In ", color="blue", side='right') as spinner:
     login_url = "https://nextdoor.com/login/"
     driver.get(login_url)
 
-# Wait for page to load
     time.sleep(2)
 
-# Replace these selectors with the actual input field identifiers
     username_field = driver.find_element(By.NAME, "email")
     password_field = driver.find_element(By.NAME, "password")
 
-# Fill in credentials
     username_field.send_keys(USERNAME)
     password_field.send_keys(PASSWORD)
-    password_field.send_keys(Keys.RETURN)  # or click a login button
+    password_field.send_keys(Keys.RETURN)
 
-# Optional: wait for login to complete
-
-# Do something after login, e.g., print title
-# print(driver.title)
-# input("enter to confirm the ")
     while True:
         if driver.current_url != login_url:
-            # print(driver.current_url)
-            # print(driver.title)
-
-            # time.sleep(5)
             break
         time.sleep(0.3)
 
-        # print(driver.title)
 
-        # except Exception as e:
-        # print('no b')
-        # print(e)
+def download_image(url, folder='./tmp'):
+    """Download an image from a URL and return the local file path"""
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+
+        # Extract filename from URL or generate one
+        parsed = urlparse(url)
+        filename = os.path.basename(parsed.path) or 'downloaded_image.jpg'
+        filepath = os.path.join(folder, filename) + ".png"
+
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(1024):
+                f.write(chunk)
+
+        return filepath
+    except Exception as e:
+        print(f"Error downloading image: {e}")
+        return None
+
+
+def extract_feed_item_info(soup):
+
+    # Extract first and last name
+    name_element = soup.find(
+        'span', class_='Styled_color-sm__zpop7k3', string=True)
+    full_name = name_element.get_text(strip=True) if name_element else ""
+
+    # Extract city
+    city_element = soup.find('a', class_='post-byline-redesign')
+    city = city_element.get_text(strip=True) if city_element else ""
+
+    # Extract review text
+    review_element = soup.find('span', class_='Linkify')
+    review = review_element.get_text(strip=True) if review_element else ""
+
+    # Extract image (avatar fallback)
+    image_element = soup.find('div', {'data-testid': 'avatar'}).find('img')
+    # print(image_element)
+
+    # image_url = image_element.find("img").src if image_element else None
+    image_url = image_element['src'] if image_element and image_element.has_attr(
+        'src') else None
+
+    return {
+        'full_name': full_name,
+        'city': city,
+        'review': review.replace("\n", ""),
+        'image_url': image_url
+    }
+
+
+def upload_image_from_data(data_item, upload_input, fallback_folder='images'):
+    """Upload image from data if available, otherwise use random image from fallback folder"""
+    # Try to use image_url from data if available
+    if data_item.get('image_url'):
+        try:
+            # Download the image to temp folder
+            temp_dir = './tmp'
+            image_path = download_image(data_item['image_url'], temp_dir)
+
+            if image_path:
+                # Upload the downloaded image
+                upload_input.send_keys(os.path.abspath(image_path))
+
+                # Delete the temporary file after upload
+                try:
+                    os.remove(image_path)
+                except Exception as e:
+                    print(f"Error deleting temporary file: {e}")
+
+                return os.path.basename(image_path)
+        except Exception as e:
+            print(f"Error processing data image: {
+                  e}. Falling back to random image.")
+
+    # Fall back to random image from folder
+    return upload_random_image(fallback_folder, upload_input)
+
+
+def upload_random_image(image_folder, upload_input):
+    """Original function for fallback random image selection"""
+    # Get list of images from library folder
+    image_files = [f for f in os.listdir(
+        image_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    if not image_files:
+        raise ValueError("No images found in the specified folder")
+
+    # Select random image
+    selected_image = random.choice(image_files)
+    image_path = os.path.join(image_folder, selected_image)
+
+    # Upload the image
+    upload_input.send_keys(os.path.abspath(image_path))
+
+    return selected_image
 
 
 with yaspin(text="Extracting Reviews ", color="blue", side='right') as spinner:
@@ -89,81 +174,26 @@ with yaspin(text="Extracting Reviews ", color="blue", side='right') as spinner:
         try:
             elm = EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, '[data-testid="see-more-recommendations-button"]'))
-            # print(elm)
-
             if elm:
                 button = driver.find_element(
                     By.CSS_SELECTOR, '[data-testid="see-more-recommendations-button"]')
-                # print(button.get_attribute("outerHTML"))
-
                 driver.execute_script(
                     "arguments[0].scrollIntoView({block: 'center'});", button)
                 time.sleep(1)
                 button.click()
                 time.sleep(2)
-            # button.click()
 
-        except NoSuchElementException as e:
-            # print(e)
+        except NoSuchElementException:
             break
+
         except:
             pass
 
-    # input("Enter")
     rec_section = driver.find_element(By.ID, "recommendations-section")
-
     html_fragment = rec_section.get_attribute("outerHTML")
-
-# Pass it to BeautifulSoup
     soup = BeautifulSoup(html_fragment, "html.parser").find('div')
-# print(soup.prettify())
-# print(soup.get_text(separator='\n', strip=True))
-
-# driver.quit()
-#
-# with open("output-2.html", "w", encoding="utf-8") as f:
-#     f.write(str(soup.prettify()))
-
-
-# with open("output-2.html", "r", encoding="utf-8") as f:
-#     html = f.read()
-
-    soup = BeautifulSoup(str(soup.prettify()), "html.parser")
-
-
-# print(len(soup.contents[0].find_all('div', recursive=False)
-#       [1].find_all('div', recursive=False)[0].find_all('div', recursive=False)[1]))
-
+    # soup = BeautifulSoup(str(soup.prettify()), "html.parser")
     elements = soup.find_all(attrs={"data-testid": "feed-item-card"})
-# print(elements[-1].find_all(attrs={'data-testid': "resized-image"}))
-
-    def extract_feed_item_info(soup):
-
-        # Extract first and last name
-        name_element = soup.find(
-            'span', class_='Styled_color-sm__zpop7k3', string=True)
-        full_name = name_element.get_text(strip=True) if name_element else ""
-
-        # Extract city
-        city_element = soup.find('a', class_='post-byline-redesign')
-        city = city_element.get_text(strip=True) if city_element else ""
-
-        # Extract review text
-        review_element = soup.find('span', class_='Linkify')
-        review = review_element.get_text(strip=True) if review_element else ""
-
-        # Extract image (avatar fallback)
-        image_element = soup.find('img', {'data-testid': 'resized-image'})
-        image_url = image_element['src'] if image_element and image_element.has_attr(
-            'src') else None
-
-        return {
-            'full_name': full_name,
-            'city': city,
-            'review': review.replace("\n", ""),
-            'image_fallback': image_url
-        }
-
     data = []
 
     for el in elements:
@@ -241,48 +271,30 @@ while True:
 # pprint(data)
 
 
-def upload_random_image(image_folder, upload_input):
-    # Get list of images from library folder
-    image_files = [f for f in os.listdir(
-        image_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-
-    if not image_files:
-        raise ValueError("No images found in the specified folder")
-
-    # Select random image
-    selected_image = random.choice(image_files)
-    image_path = os.path.join(image_folder, selected_image)
-
-    # Upload the image
-    upload_input.send_keys(os.path.abspath(image_path))
-
-    return selected_image
-
-
 def send_input(elmn, text):
     elmn.send_keys(text)
 
 
 for d in data:
-    with yaspin(text=f"Uploading Review: {d["full_name"]} ", color="blue", side='right') as spinner:
+    # with yaspin(text=f"Uploading Review: {d["full_name"]} ", color="blue", side='right') as spinner:
 
-        review_url = "https://luketreeservice.com/review"
-        driver.get(review_url)
-        time.sleep(2)
-        inps = driver.find_elements(By.TAG_NAME, 'input')
-        # print(d['full_name'].split(" ")[:2])
-        first, last = d['full_name'].split(" ")[:2]
-        city, nbg = d['city'].replace(" ", "").split(",")[:2]
-        review = d['review']
+    review_url = "https://luketreeservice.com/review"
+    driver.get(review_url)
+    time.sleep(2)
+    inps = driver.find_elements(By.TAG_NAME, 'input')
+    # print(d['full_name'].split(" ")[:2])
+    first, last = d['full_name'].split(" ")[:2]
+    city, nbg = d['city'].replace(" ", "").split(",")[:2]
+    review = d['review']
 
-        send_input(inps[0], first)
-        send_input(inps[1], last)
-        send_input(inps[2], city)
-        send_input(inps[3], nbg)
+    send_input(inps[0], first)
+    send_input(inps[1], last)
+    send_input(inps[2], city)
+    send_input(inps[3], nbg)
 
-        driver.find_element(By.CSS_SELECTOR, "label[for=':ra:']").click()
-        send_input(driver.find_element(By.TAG_NAME, 'textarea'), review)
-        upload_random_image('images', inps[-1])
-        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-        time.sleep(1)
-        # input("xx")
+    driver.find_element(By.CSS_SELECTOR, "label[for=':ra:']").click()
+    send_input(driver.find_element(By.TAG_NAME, 'textarea'), review)
+    upload_image_from_data(d, inps[-1])
+    # input("xx")
+    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    time.sleep(1)
