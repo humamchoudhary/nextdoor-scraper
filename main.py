@@ -276,25 +276,25 @@ def send_input(elmn, text):
 
 
 for d in data:
-    # with yaspin(text=f"Uploading Review: {d["full_name"]} ", color="blue", side='right') as spinner:
+    with yaspin(text=f"Uploading Review: {d["full_name"]} ", color="blue", side='right') as spinner:
 
-    review_url = "https://luketreeservice.com/review"
-    driver.get(review_url)
-    time.sleep(2)
-    inps = driver.find_elements(By.TAG_NAME, 'input')
-    # print(d['full_name'].split(" ")[:2])
-    first, last = d['full_name'].split(" ")[:2]
-    city, nbg = d['city'].replace(" ", "").split(",")[:2]
-    review = d['review']
+        review_url = "https://luketreeservice.com/review"
+        driver.get(review_url)
+        time.sleep(2)
+        inps = driver.find_elements(By.TAG_NAME, 'input')
+        # print(d['full_name'].split(" ")[:2])
+        first, last = d['full_name'].split(" ")[:2]
+        city, nbg = d['city'].replace(" ", "").split(",")[:2]
+        review = d['review']
 
-    send_input(inps[0], first)
-    send_input(inps[1], last)
-    send_input(inps[2], city)
-    send_input(inps[3], nbg)
+        send_input(inps[0], first)
+        send_input(inps[1], last)
+        send_input(inps[2], city)
+        send_input(inps[3], nbg)
 
-    driver.find_element(By.CSS_SELECTOR, "label[for=':ra:']").click()
-    send_input(driver.find_element(By.TAG_NAME, 'textarea'), review)
-    upload_image_from_data(d, inps[-1])
-    # input("xx")
-    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-    time.sleep(1)
+        driver.find_element(By.CSS_SELECTOR, "label[for=':ra:']").click()
+        send_input(driver.find_element(By.TAG_NAME, 'textarea'), review)
+        upload_image_from_data(d, inps[-1])
+        # input("xx")
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        time.sleep(1)
