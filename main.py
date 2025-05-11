@@ -1,5 +1,4 @@
 import random
-from pprint import pprint
 from selenium.common.exceptions import NoSuchElementException
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,8 +15,6 @@ from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
-import os
-import tempfile
 
 # Load environment variables from .env file
 load_dotenv()
